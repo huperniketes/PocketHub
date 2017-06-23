@@ -17,7 +17,7 @@ package com.github.pockethub.android.ui.issue;
 
 import android.util.Log;
 
-import com.github.pockethub.android.rx.ProgressObserverAdapter;
+import com.github.pockethub.android.rx.RxProgress;
 import com.meisolsson.githubsdk.core.ServiceGenerator;
 import com.meisolsson.githubsdk.model.Milestone;
 import com.meisolsson.githubsdk.model.Page;
@@ -29,14 +29,11 @@ import com.github.pockethub.android.util.ToastUtils;
 import com.meisolsson.githubsdk.service.issues.IssueMilestoneService;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
-import rx.Observable;
-import rx.android.schedulers.AndroidSchedulers;
-import rx.functions.Func1;
-import rx.schedulers.Schedulers;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 
 import static java.lang.String.CASE_INSENSITIVE_ORDER;
 
@@ -80,36 +77,18 @@ public class MilestoneDialog extends BaseProgressDialog {
     }
 
     private void load(final Milestone selectedMilestone) {
-        getPageAndNext(1).subscribe(new ProgressObserverAdapter<Page<Milestone>>(activity, R.string.loading_milestones){
-            ArrayList<Milestone> milestones = new ArrayList<>();
+        getPageAndNext(1)
+                .flatMap(page -> Observable.fromIterable(page.items()))
+                .toSortedList((m1, m2) -> CASE_INSENSITIVE_ORDER.compare(m1.title(), m2.title()))
+                .compose(RxProgress.bindToLifecycle(activity, R.string.loading_milestones))
+                .subscribe(milestones -> {
+                    repositoryMilestones = (ArrayList) milestones;
 
-            @Override
-            public void onNext(Page<Milestone> page) {
-                milestones.addAll(page.items());
-            }
-
-            @Override
-            public void onCompleted() {
-                super.onCompleted();
-                Collections.sort(milestones, new Comparator<Milestone>() {
-                    public int compare(Milestone m1, Milestone m2) {
-                        return CASE_INSENSITIVE_ORDER.compare(m1.title(),
-                                m2.title());
-                    }
+                    show(selectedMilestone);
+                }, error -> {
+                    Log.e(TAG, "Exception loading milestones", error);
+                    ToastUtils.show(activity, error, R.string.error_milestones_load);
                 });
-                repositoryMilestones = milestones;
-
-                dismissProgress();
-                show(selectedMilestone);
-            }
-
-            @Override
-            public void onError(Throwable error) {
-                dismissProgress();
-                Log.e(TAG, "Exception loading milestones", error);
-                ToastUtils.show(activity, error, R.string.error_milestones_load);
-            }
-        }.start());
     }
 
     private Observable<Page<Milestone>> getPageAndNext(int i) {
@@ -117,15 +96,14 @@ public class MilestoneDialog extends BaseProgressDialog {
                 .getRepositoryMilestones(repository.owner().login(), repository.name(), i)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .concatMap(new Func1<Page<Milestone>, Observable<Page<Milestone>>>() {
-                    @Override
-                    public Observable<Page<Milestone>> call(Page<Milestone> page) {
-                        if (page.next() == null)
-                            return Observable.just(page);
-
-                        return Observable.just(page)
-                                .concatWith(getPageAndNext(page.next()));
+                .flatMapObservable(response -> {
+                    Page<Milestone> page = response.body();
+                    if (page.next() == null) {
+                        return Observable.just(page);
                     }
+
+                    return Observable.just(page)
+                            .concatWith(getPageAndNext(page.next()));
                 });
     }
 
@@ -141,12 +119,14 @@ public class MilestoneDialog extends BaseProgressDialog {
         }
 
         int checked = -1;
-        if (selectedMilestone != null)
-            for (int i = 0; i < repositoryMilestones.size(); i++)
+        if (selectedMilestone != null) {
+            for (int i = 0; i < repositoryMilestones.size(); i++) {
                 if (selectedMilestone.number() == repositoryMilestones.get(i).number()) {
                     checked = i;
                     break;
                 }
+            }
+        }
         MilestoneDialogFragment.show(activity, requestCode,
                 activity.getString(R.string.select_milestone), null,
                 repositoryMilestones, checked);
@@ -159,11 +139,14 @@ public class MilestoneDialog extends BaseProgressDialog {
      * @return number of -1 if not found
      */
     public int getMilestoneNumber(String title) {
-        if (repositoryMilestones == null)
+        if (repositoryMilestones == null) {
             return -1;
-        for (Milestone milestone : repositoryMilestones)
-            if (title.equals(milestone.title()))
+        }
+        for (Milestone milestone : repositoryMilestones) {
+            if (title.equals(milestone.title())) {
                 return milestone.number();
+            }
+        }
         return -1;
     }
 }

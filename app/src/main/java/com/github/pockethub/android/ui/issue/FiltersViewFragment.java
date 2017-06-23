@@ -28,7 +28,6 @@ import android.widget.AdapterView.OnItemLongClickListener;
 
 import com.github.pockethub.android.Intents.Builder;
 import com.github.pockethub.android.R;
-import com.github.pockethub.android.RequestFuture;
 import com.github.pockethub.android.core.issue.IssueFilter;
 import com.github.pockethub.android.persistence.AccountDataManager;
 import com.github.pockethub.android.ui.ConfirmDialogFragment;
@@ -40,7 +39,7 @@ import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP;
 import static android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP;
 
 /**
- * Activity to display a list of saved {@link com.github.pockethub.android.core.issue.IssueFilter} objects
+ * Activity to display a list of saved {@link IssueFilter} objects
  */
 public class FiltersViewFragment extends DialogFragment implements
     OnItemLongClickListener {
@@ -81,14 +80,12 @@ public class FiltersViewFragment extends DialogFragment implements
     public void onDialogResult(int requestCode, int resultCode, Bundle arguments) {
         if (requestCode == REQUEST_DELETE && resultCode == Activity.RESULT_OK) {
             IssueFilter filter = arguments.getParcelable(ARG_FILTER);
-            cache.removeIssueFilter(filter, new RequestFuture<IssueFilter>() {
-
-                @Override
-                public void success(IssueFilter response) {
-                    if (fragment != null)
+            cache.removeIssueFilter(filter)
+                .subscribe(response -> {
+                    if (fragment != null) {
                         fragment.refresh();
-                }
-            });
+                    }
+                });
             return;
         }
 

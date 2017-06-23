@@ -27,17 +27,15 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 
 import com.github.pockethub.android.R;
-import com.github.pockethub.android.rx.ProgressObserverAdapter;
+import com.github.pockethub.android.rx.RxProgress;
 import com.github.pockethub.android.ui.BaseActivity;
 import com.github.pockethub.android.ui.TextWatcherAdapter;
 import com.github.pockethub.android.util.ShareUtils;
 import com.github.pockethub.android.util.ToastUtils;
 import com.meisolsson.githubsdk.core.ServiceGenerator;
-import com.meisolsson.githubsdk.model.Gist;
 import com.meisolsson.githubsdk.model.GistFile;
 import com.meisolsson.githubsdk.model.request.gist.CreateGist;
 import com.meisolsson.githubsdk.service.gists.GistService;
@@ -45,8 +43,8 @@ import com.meisolsson.githubsdk.service.gists.GistService;
 import java.util.HashMap;
 import java.util.Map;
 
-import rx.android.schedulers.AndroidSchedulers;
-import rx.schedulers.Schedulers;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 
 /**
  * Activity to share a text selection as a public or private Gist
@@ -73,19 +71,17 @@ public class CreateGistActivity extends BaseActivity {
 
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
 
-        descriptionText = finder.find(R.id.et_gist_description);
-        nameText = finder.find(R.id.et_gist_name);
-        contentText = finder.find(R.id.et_gist_content);
-        publicCheckBox = finder.find(R.id.cb_public);
+        descriptionText = (EditText) findViewById(R.id.et_gist_description);
+        nameText = (EditText) findViewById(R.id.et_gist_name);
+        contentText = (EditText) findViewById(R.id.et_gist_content);
+        publicCheckBox = (CheckBox) findViewById(R.id.cb_public);
 
-        final AppBarLayout appBarLayout = finder.find(R.id.appbar);
+        final AppBarLayout appBarLayout = (AppBarLayout) findViewById(R.id.appbar);
 
         // Fully expand the AppBar if something in it gets focus
-        View.OnFocusChangeListener expandAppBarOnFocusChangeListener = new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus)
-                    appBarLayout.setExpanded(true);
+        View.OnFocusChangeListener expandAppBarOnFocusChangeListener = (v, hasFocus) -> {
+            if (hasFocus) {
+                appBarLayout.setExpanded(true);
             }
         };
         nameText.setOnFocusChangeListener(expandAppBarOnFocusChangeListener);
@@ -112,23 +108,21 @@ public class CreateGistActivity extends BaseActivity {
         nameText.addTextChangedListener(expandAppBarTextWatcher);
         descriptionText.addTextChangedListener(expandAppBarTextWatcher);
         publicCheckBox.addTextChangedListener(expandAppBarTextWatcher);
-        publicCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                appBarLayout.setExpanded(true);
-            }
-        });
+        publicCheckBox.setOnCheckedChangeListener((buttonView, isChecked) ->
+                appBarLayout.setExpanded(true));
 
         ActionBar actionBar = getSupportActionBar();
         actionBar.setDisplayHomeAsUpEnabled(true);
 
         String text = ShareUtils.getBody(getIntent());
-        if (!TextUtils.isEmpty(text))
+        if (!TextUtils.isEmpty(text)) {
             contentText.setText(text);
+        }
 
         String subject = ShareUtils.getSubject(getIntent());
-        if (!TextUtils.isEmpty(subject))
+        if (!TextUtils.isEmpty(subject)) {
             descriptionText.setText(subject);
+        }
 
         contentText.addTextChangedListener(new TextWatcherAdapter() {
 
@@ -151,9 +145,12 @@ public class CreateGistActivity extends BaseActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()){
+        switch (item.getItemId()) {
             case R.id.create_gist:
                 createGist();
+                return true;
+            case android.R.id.home:
+                finish();
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -161,13 +158,15 @@ public class CreateGistActivity extends BaseActivity {
     }
 
     private void updateCreateMenu() {
-        if (contentText != null)
+        if (contentText != null) {
             updateCreateMenu(contentText.getText());
+        }
     }
 
     private void updateCreateMenu(CharSequence text) {
-        if (menuItem != null)
+        if (menuItem != null) {
             menuItem.setEnabled(!TextUtils.isEmpty(text));
+        }
     }
 
     private void createGist() {
@@ -195,23 +194,15 @@ public class CreateGistActivity extends BaseActivity {
                 .createGist(createGist)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .compose(this.<Gist>bindToLifecycle())
-                .subscribe(new ProgressObserverAdapter<Gist>(this, R.string.creating_gist) {
-
-                    @Override
-                    public void onNext(Gist gist) {
-                        super.onNext(gist);
-                        startActivity(GistsViewActivity.createIntent(gist));
-                        setResult(RESULT_OK);
-                        finish();
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        super.onError(e);
-                        Log.d(TAG, "Exception creating Gist", e);
-                        ToastUtils.show(CreateGistActivity.this, e.getMessage());
-                    }
-                }.start());
+                .compose(this.bindToLifecycle())
+                .compose(RxProgress.bindToLifecycle(this, R.string.creating_gist))
+                .subscribe(response -> {
+                    startActivity(GistsViewActivity.createIntent(response.body()));
+                    setResult(RESULT_OK);
+                    finish();
+                }, e -> {
+                    Log.d(TAG, "Exception creating Gist", e);
+                    ToastUtils.show(this, e.getMessage());
+                });
     }
 }

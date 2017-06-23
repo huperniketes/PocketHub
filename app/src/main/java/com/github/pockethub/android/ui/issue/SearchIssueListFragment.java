@@ -58,8 +58,9 @@ public class SearchIssueListFragment extends ItemListFragment<Issue>
         super.onCreate(savedInstanceState);
 
         Bundle appData = getActivity().getIntent().getBundleExtra(APP_DATA);
-        if (appData != null)
+        if (appData != null) {
             repository = appData.getParcelable(EXTRA_REPOSITORY);
+        }
     }
 
     @Override
@@ -88,18 +89,22 @@ public class SearchIssueListFragment extends ItemListFragment<Issue>
     @Override
     public Loader<List<Issue>> onCreateLoader(int id, Bundle args) {
         return new ThrowableLoader<List<Issue>>(getActivity(), items) {
-
+            @Override
             public List<Issue> loadData() throws Exception {
-                if (repository == null)
+                if (repository == null) {
                     return Collections.emptyList();
+                }
                 List<Issue> matches = new ArrayList<>();
 
                 SearchService service = ServiceGenerator.createService(getActivity(), SearchService.class);
 
                 int current = 1;
                 int last = 0;
-                while(current != last){
-                    SearchPage<Issue> page = service.searchIssues(query, null, null, current).toBlocking().first();
+                while (current != last) {
+                    SearchPage<Issue> page = service.searchIssues(query, null, null, current)
+                            .blockingGet()
+                            .body();
+
                     matches.addAll(page.items());
                     last = page.last() != null ? page.last() : -1;
                     current = page.next() != null ? page.next() : -1;

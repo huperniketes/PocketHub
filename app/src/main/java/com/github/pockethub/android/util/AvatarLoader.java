@@ -28,6 +28,7 @@ import android.view.MenuItem;
 import android.widget.ImageView;
 
 import com.github.pockethub.android.R;
+import com.google.inject.Singleton;
 import com.meisolsson.githubsdk.model.User;
 import com.google.inject.Inject;
 import com.squareup.okhttp.Cache;
@@ -47,6 +48,7 @@ import roboguice.util.RoboAsyncTask;
 /**
  * Avatar utilities
  */
+@Singleton
 public class AvatarLoader {
     static final int DISK_CACHE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -73,7 +75,7 @@ public class AvatarLoader {
      */
     @Inject
     public AvatarLoader(final Context context) {
-        this.context = context;
+        this.context = context.getApplicationContext();
 
         OkHttpClient client = new OkHttpClient();
 
@@ -94,8 +96,9 @@ public class AvatarLoader {
         // TODO remove this eventually
         // Delete the old cache
         final File avatarDir = new File(context.getCacheDir(), "avatars/github.com");
-        if (avatarDir.isDirectory())
+        if (avatarDir.isDirectory()) {
             deleteCache(avatarDir);
+        }
     }
 
     /**
@@ -117,16 +120,19 @@ public class AvatarLoader {
      * @return this helper
      */
     public void bind(final ActionBar actionBar, final AtomicReference<User> userReference) {
-        if (userReference == null)
+        if (userReference == null) {
             return;
+        }
 
         final User user = userReference.get();
-        if (user == null)
+        if (user == null) {
             return;
+        }
 
         String avatarUrl = user.avatarUrl();
-        if (TextUtils.isEmpty(avatarUrl))
+        if (TextUtils.isEmpty(avatarUrl)) {
             return;
+        }
 
         // Remove the URL params as they are not needed and break cache
         if (avatarUrl.contains("?") && !avatarUrl.contains("gravatar")) {
@@ -187,17 +193,14 @@ public class AvatarLoader {
 
         //MenuItem icons can not be set async,
         //but we have to use a different Thread because picasso fails if we are using the main thread
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    int _24dp = ServiceUtils.getIntPixels(context, 24);
-                    Bitmap image = p.load(url).resize(_24dp, _24dp).get();
-                    BitmapDrawable drawable = new BitmapDrawable(context.getResources(), ImageUtils.roundCorners(image, cornerRadius));
-                    orgMenuItem.setIcon(drawable);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        Thread thread = new Thread(() -> {
+            try {
+                int _24dp = ServiceUtils.getIntPixels(context, 24);
+                Bitmap image = p.load(url).resize(_24dp, _24dp).get();
+                BitmapDrawable drawable = new BitmapDrawable(context.getResources(), ImageUtils.roundCorners(image, cornerRadius));
+                orgMenuItem.setIcon(drawable);
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         });
         thread.start();
@@ -210,8 +213,9 @@ public class AvatarLoader {
     }
 
     private String getAvatarUrl(User user) {
-        if (user == null)
+        if (user == null) {
             return null;
+        }
 
         String avatarUrl = user.avatarUrl();
         if (TextUtils.isEmpty(avatarUrl)) {
@@ -221,10 +225,11 @@ public class AvatarLoader {
     }
 
     private String getAvatarUrl(String id) {
-        if (!TextUtils.isEmpty(id))
+        if (!TextUtils.isEmpty(id)) {
             return "http://gravatar.com/avatar/" + id + "?d=404";
-        else
+        } else {
             return null;
+        }
     }
 
     private int getMaxAvatarSize(final Context context) {
@@ -237,9 +242,11 @@ public class AvatarLoader {
     }
 
     private boolean deleteCache(final File cache) {
-        if (cache.isDirectory())
-            for (File f : cache.listFiles())
+        if (cache.isDirectory()) {
+            for (File f : cache.listFiles()) {
                 deleteCache(f);
+            }
+        }
         return cache.delete();
     }
 

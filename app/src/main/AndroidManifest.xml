@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.READ_SYNC_STATS" />
     <uses-permission android:name="android.permission.USE_CREDENTIALS" />
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <supports-screens
         android:largeScreens="true"
@@ -58,6 +59,16 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/*" />
             </intent-filter>
+        </activity>
+        <activity
+            android:name="com.github.pockethub.android.ui.notification.NotificationActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:parentActivityName="com.github.pockethub.android.ui.MainActivity"
+            android:hardwareAccelerated="true">
+
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.github.pockethub.android.ui.MainActivity" />
         </activity>
         <activity
             android:name="com.github.pockethub.android.ui.issue.IssueBrowseActivity"
